@@ -213,6 +213,54 @@ describe(`MySQLEvents using ${IS_POOL ? 'connection pool' : 'single connection'}
     await instance.stop();
   }, 10000);
 
+  it('should catch an event filtered by value using an INSERT trigger', async () => {
+    const instance = new MySQLEvents({
+      host: 'localhost',
+      user: 'root',
+      password: 'root',
+      port: DATABASE_PORT,
+      isPool: IS_POOL,
+    }, {
+      serverId: getServerId(),
+      startAtEnd: true,
+      excludedSchemas: {
+        mysql: true,
+      },
+    });
+
+    await instance.start();
+
+    const triggerEvents = [];
+    instance.addTrigger({
+      name: 'Test',
+      expression: `${TEST_SCHEMA_1}.${TEST_TABLE_1}.${TEST_COLUMN_1}.aValue`,
+      statement: MySQLEvents.STATEMENTS.INSERT,
+      onEvent: event => triggerEvents.push(event),
+    });
+
+    instance.on(MySQLEvents.EVENTS.TRIGGER_ERROR, console.error);
+    instance.on(MySQLEvents.EVENTS.CONNECTION_ERROR, console.error);
+    instance.on(MySQLEvents.EVENTS.ZONGJI_ERROR, console.error);
+
+    await delay(5000);
+
+    await executeQuery(instance.connection, `INSERT INTO ${TEST_SCHEMA_1}.${TEST_TABLE_1}(${TEST_COLUMN_1}) VALUES ('aValue');`);
+    await executeQuery(instance.connection, `INSERT INTO ${TEST_SCHEMA_1}.${TEST_TABLE_1}(${TEST_COLUMN_1}) VALUES ('notWatchedValue');`);
+
+    await delay(5000);
+
+    triggerEvents.should.be.an('array').to.have.lengthOf(1);
+    triggerEvents[0].should.be.an('object');
+
+    triggerEvents[0].should.have.ownPropertyDescriptor('type');
+    triggerEvents[0].type.should.be.a('string').equals('INSERT');
+
+    expect(triggerEvents[1]).to.be.an('undefined');
+
+    await instance.stop();
+
+  }, 15000);
+
   it('should catch an event using an INSERT trigger', async () => {
     const instance = new MySQLEvents({
       host: 'localhost',
