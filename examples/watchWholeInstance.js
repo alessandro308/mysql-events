@@ -14,6 +14,7 @@ const program = async () => {
   instance.addTrigger({
     name: 'Whole database instance',
     expression: '*',
+    query: '',
     statement: MySQLEvents.STATEMENTS.ALL,
     onEvent: (event) => {
       console.log(event);
